@@ -19,7 +19,7 @@ from .gen import (
     timestamp_strategy,
     uuid_strategy,
 )
-from .map import COL_NAME_STRATEGY_MAPPINGS
+from .col_name_strat_map import COL_NAME_STRATEGY_MAPPINGS
 from psycopg import Connection
 
 logger = logging.getLogger(__name__)
