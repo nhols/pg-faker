@@ -1,4 +1,5 @@
 import functools
+import json
 import logging
 import random
 from collections.abc import Callable, Hashable, Sequence
@@ -41,48 +42,28 @@ def strategy_wrapper[T: Any, **P](func: Callable[P, T]) -> Callable[P, Strategy[
     return wrapper
 
 
-@strategy_wrapper
-def numeric_strategy(precision: int = 53, scale: int = 0) -> Decimal:
-    return fake.pydecimal(left_digits=precision - scale, right_digits=scale)
+numeric_strategy = strategy_wrapper(fake.pydecimal)
+
+int_strategy = strategy_wrapper(fake.pyint)
+
+char_strategy = strategy_wrapper(fake.pystr)
 
 
-@strategy_wrapper
-def int_strategy(precision: int = 32) -> int:
-    max_value: int = 2 ** (precision - 1) - 1
-    min_value = -1 * max_value - 1
-    return fake.pyint(min_value=min_value, max_value=max_value)
+uuid_strategy = strategy_wrapper(fake.uuid4)
 
+date_strategy = strategy_wrapper(fake.date_between_dates)
 
-@strategy_wrapper
-def char_strategy(max_length: int | None = None) -> str:
-    if max_length:
-        return fake.pystr(max_chars=max_length)
-    return fake.pystr()
+timestamp_strategy = strategy_wrapper(fake.date_time_between_dates)
 
+time_strategy = strategy_wrapper(fake.time)
 
-@strategy_wrapper
-def uuid_strategy() -> UUID:
-    return fake.uuid4(cast_to=None)
+bool_strategy = strategy_wrapper(fake.boolean)
 
+json_strategy = strategy_wrapper(fake.json)
 
-@strategy_wrapper
-def date_strategy() -> date:
-    return fake.date_between_dates()
+binary_strategy = strategy_wrapper(fake.binary)
 
-
-@strategy_wrapper
-def timestamp_strategy() -> datetime:
-    return fake.date_time_between_dates()
-
-
-@strategy_wrapper
-def bool_strategy() -> bool:
-    return fake.boolean()
-
-
-@strategy_wrapper
-def json_strategy() -> str:
-    return fake.json()
+xml_strategy = strategy_wrapper(fake.xml)
 
 
 @strategy_wrapper

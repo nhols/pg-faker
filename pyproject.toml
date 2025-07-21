@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "faker>=37.4.2",
     "psycopg[binary]>=3.2.9",
+    "xmltodict>=0.14.2",
 ]
 
 [build-system]

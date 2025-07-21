@@ -2,7 +2,8 @@ import logging
 
 from psycopg import Connection, sql
 
-from .pg import Row, TableName, get_db, get_schema
+from .generate import Row, TableName, get_db
+from .pg import get_schema
 
 
 def insert_data(conn: Connection, data: dict[TableName, list[Row]]) -> None:
@@ -21,7 +22,7 @@ def insert_data(conn: Connection, data: dict[TableName, list[Row]]) -> None:
                 cursor.executemany(sql_query, values)
 
 
-def run(conn: Connection, row_counts: dict[TableName, int]|None =None) -> None:
+def run(conn: Connection, row_counts: dict[TableName, int] | None = None) -> None:
     schema = get_schema(conn)
     data = get_db(schema, row_counts)
     for tbl, rows in data.items():

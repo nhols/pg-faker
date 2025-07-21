@@ -1,7 +1,8 @@
 from typing import Any
 
 from faker import Faker
-from .gen import Strategy, counterparty_name_strategy
+
+from .strategies import Strategy, counterparty_name_strategy
 
 fake = Faker()
 
