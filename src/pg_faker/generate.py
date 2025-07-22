@@ -131,6 +131,7 @@ def get_fk_constrained_options(
     fk_constraints: list[FkConstraint], data: dict[TableName, list[Row]], max_rows: int = MAX_ROWS
 ) -> tuple[set[ColName], Strategy[Row, [list[Row]]] | None]:
     seen_cols = set()
+    first_loop = True
     constrained_rows = []
     for fk in fk_constraints:
         foreign_table = fk["foreign_table"]
@@ -138,12 +139,16 @@ def get_fk_constrained_options(
         foreign_cols = set(fk["local_foreign_mapping"].values())
         rows = [select(row, foreign_cols) for row in data.get(foreign_table, [])]
         if not rows:
+            # TODO only if no nullable
             return {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}, None
         col_map = {v: k for k, v in fk["local_foreign_mapping"].items()}
         rows = [rename(row, col_map) for row in rows]
         overlap_cols = local_cols.intersection(seen_cols)
         seen_cols.update(local_cols)
-
+        if first_loop:
+            constrained_rows = rows
+            first_loop = False
+            continue
         if overlap_cols:
             constrained_rows = inner_join(constrained_rows, rows, on_cols=overlap_cols)
         else:
