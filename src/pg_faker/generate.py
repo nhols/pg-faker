@@ -215,7 +215,7 @@ def get_table(
     ]
     | Strategy[list, [list]]
 ):
-    row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data)
+    row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data, override_strategies)
     if row_strategy is None:
         logger.warning(f"No row strategy generated for table {table_info['table']}, returning empty list strategy")
         return fixed_strategy([])
