@@ -127,8 +127,12 @@ def cross_join(rows1: Iterable[Row], rows2: Iterable[Row]) -> Generator[Row, Non
             yield {**row1, **row2}
 
 
+# TODO if a fk exists (p1, p2) = (c1, c2) + c1 and/or is nullable, the fk is only enforced if both c1 and c2 are not null
 def get_fk_constrained_options(
-    fk_constraints: list[FkConstraint], data: dict[TableName, list[Row]], max_rows: int = MAX_ROWS
+    local_col_infos: dict[ColName, ColInfo],
+    fk_constraints: list[FkConstraint],
+    data: dict[TableName, list[Row]],
+    max_rows: int = MAX_ROWS,
 ) -> tuple[set[ColName], Strategy[Row, [list[Row]]] | None]:
     seen_cols = set()
     first_loop = True
@@ -138,6 +142,7 @@ def get_fk_constrained_options(
         local_cols = set(fk["local_foreign_mapping"].keys())
         foreign_cols = set(fk["local_foreign_mapping"].values())
         rows = [select(row, foreign_cols) for row in data.get(foreign_table, [])]
+        nullable_local_cols = {col for col in local_cols if local_col_infos[col]["nullable"]}
         if not rows:
             # TODO only if no nullable
             return {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}, None
@@ -179,7 +184,7 @@ def get_row(
     | None
 ):
     override_strategies = override_strategies or {}
-    fk_constrained_cols, fk_strat = get_fk_constrained_options(fk_constraints, data)
+    fk_constrained_cols, fk_strat = get_fk_constrained_options(col_infos, fk_constraints, data)
     if fk_constrained_cols and fk_strat is None:
         logger.info(f"No values found for foreign key constrained columns: {fk_constrained_cols}")
         if not all(col_infos[col]["nullable"] for col in fk_constrained_cols):

@@ -56,7 +56,12 @@ def test_get_fk_constrained_options(schema):
         "parent1": [{"a": f"a{i}", "b": f"b{i}"} for i in range(10)],
         "parent2": [{"b": f"b{i}", "c": f"c{i}"} for i in range(5, 10)],
     }
-    cols, strat = get_fk_constrained_options(fk_constraints=schema[2]["fk_constraints"], data=data)
+    child_tbl_info = schema[2]
+    cols, strat = get_fk_constrained_options(
+        local_col_infos=child_tbl_info["columns"],
+        fk_constraints=child_tbl_info["fk_constraints"],
+        data=data,
+    )
 
     assert cols == {"a", "b", "c"}
     assert strat is not None
