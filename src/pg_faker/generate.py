@@ -14,6 +14,7 @@ from .pg import (
 )
 from .strategies import (
     Strategy,
+    UnenforceableUniqueConstraintError,
     binary_strategy,
     bool_strategy,
     char_strategy,
@@ -129,7 +130,6 @@ def cross_join(rows1: Iterable[Row], rows2: Iterable[Row]) -> Generator[Row, Non
 
 # TODO if a fk exists (p1, p2) = (c1, c2) + c1 and/or is nullable, the fk is only enforced if both c1 and c2 are not null
 def get_fk_constrained_options(
-    local_col_infos: dict[ColName, ColInfo],
     fk_constraints: list[FkConstraint],
     data: dict[TableName, list[Row]],
     max_rows: int = MAX_ROWS,
@@ -142,9 +142,9 @@ def get_fk_constrained_options(
         local_cols = set(fk["local_foreign_mapping"].keys())
         foreign_cols = set(fk["local_foreign_mapping"].values())
         rows = [select(row, foreign_cols) for row in data.get(foreign_table, [])]
-        nullable_local_cols = {col for col in local_cols if local_col_infos[col]["nullable"]}
+        # NULL != NULL A row in the foreign table must have all foreign key columns not None to be referencable
+        rows = [row for row in rows if all(value is not None for value in row.values())]
         if not rows:
-            # TODO only if no nullable
             return {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}, None
         col_map = {v: k for k, v in fk["local_foreign_mapping"].items()}
         rows = [rename(row, col_map) for row in rows]
@@ -184,21 +184,52 @@ def get_row(
     | None
 ):
     override_strategies = override_strategies or {}
-    fk_constrained_cols, fk_strat = get_fk_constrained_options(col_infos, fk_constraints, data)
+
+    fk_constrained_cols = {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}
+    null_fk_col_strats: list[Strategy[Row, [Row]]] = []
+    null_fk_col_names: set[str] = set()
+    for fk_col in fk_constrained_cols:
+        strat = override_strategies.get(fk_col) or col_info_to_strategy(col_infos[fk_col])
+        if strat.func == nullable and strat.gen() is None:
+            null_fk_col_strats.append(fixed_strategy({"fk_col": None}))
+            null_fk_col_names.add(fk_col)
+    # NULL != NULL in SQL: If an FK constrained col value is NULL, that fk constraint is not enforced on that row
+    enforceable_fk_constraints = [
+        fk_constraint
+        for fk_constraint in fk_constraints
+        if not null_fk_col_names.intersection(fk_constraint["local_foreign_mapping"].keys())
+    ]
+    fk_constrained_cols, fk_strat = get_fk_constrained_options(enforceable_fk_constraints, data)
     if fk_constrained_cols and fk_strat is None:
         logger.info(f"No values found for foreign key constrained columns: {fk_constrained_cols}")
-        if not all(col_infos[col]["nullable"] for col in fk_constrained_cols):
-            logger.warning("Some foreign key constrained columns are not nullable, zero rows will be generated")
-            return None
-        fk_strat = one_of([{col: None} for col in fk_constrained_cols])
+        return None
     if ovlp := fk_constrained_cols.intersection(override_strategies.keys()):
         logger.warning(f"Override strategy for foreign key constrained columns will be ignored: {ovlp}")
+    already_handled_cols = null_fk_col_names.union(fk_constrained_cols)
     strategies = {
         col_name: override_strategies.get(col_name) or col_info_to_strategy(col_info)
         for col_name, col_info in col_infos.items()
-        if col_name not in fk_constrained_cols
+        if col_name not in already_handled_cols
     }
-    return dict_strategy(strategies, others=[fk_strat] if fk_strat else None)
+    others = list(null_fk_col_strats)
+    if fk_strat is not None:
+        others = others + [fk_strat]
+    return dict_strategy(strategies, others=others or None)
+
+
+def get_uc_hasher(uc: tuple[ColName, ...]) -> Callable[[Row], Hashable]:
+    """
+    Returns a function that hashes a row based on the columns in the unique constraint.
+    """
+
+    def row_hasher(row: Row) -> Hashable:
+        hash = tuple(row[col] for col in uc if col in row)
+        if any(value is None for value in hash):
+            raise UnenforceableUniqueConstraintError(
+                f"Row {row} has `NULL` values in unique constraint columns {uc}, cannot enforce unique constraint"
+            )
+
+    return row_hasher
 
 
 def get_table(
@@ -229,12 +260,12 @@ def get_table(
     if row_strategy is None:
         logger.warning(f"No row strategy generated for table {table_info['table']}, returning empty list strategy")
         return fixed_strategy([])
-    unique_bys = tuple(lambda row, uc=uc: tuple(row[col] for col in uc) for uc in table_info["unique_constraints"])
+    unique_bys = tuple(get_uc_hasher(uc) for uc in table_info["unique_constraints"])
     return list_strategy(
         row_strategy,
         min_length=row_count if row_count is not None else MIN_ROWS,
         max_length=row_count if row_count is not None else MAX_ROWS,
-        unique_by=unique_bys,
+        unique_bys=unique_bys,
     )
 
 
@@ -263,3 +294,11 @@ def get_db(
         data[tbl] = table_strat.gen()
         logger.info(f"Generated {len(data[tbl])} rows for table {tbl}")
     return data
+
+
+for i in range(10):
+    for j in range(10):
+        if i + j > 10:
+            print("b")
+            break
+        print(f"i: {i}, j: {j}")

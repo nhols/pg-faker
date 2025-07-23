@@ -48,7 +48,6 @@ int_strategy = strategy_wrapper(fake.pyint)
 
 char_strategy = strategy_wrapper(fake.pystr)
 
-
 uuid_strategy = strategy_wrapper(fake.uuid4)
 
 date_strategy = strategy_wrapper(fake.date_between_dates)
@@ -98,28 +97,58 @@ def dict_strategy(
     return result
 
 
+class UnenforceableUniqueConstraintError(Exception):
+    """
+    Raised when a unique constraint cannot be enforced due to missing data.
+    This can happen if the data does not provide enough unique values for the columns in the constraint.
+    """
+
+
 @strategy_wrapper
 def list_strategy[T: Any, **P](
     strategy: Strategy[T, P],
     min_length: int = 5,
     max_length: int = 10,
-    unique_by: Sequence[Callable[[T], Hashable]] | None = None,
+    unique_bys: Sequence[Callable[[T], Hashable]] | None = None,
     max_iter: int = 10000,
 ) -> list[T]:
+    """
+    Generates a list of items using the provided strategy.
+
+    Items are generated until either the list reaches a predetermined length between `min_length` and `max_length`,
+    or the maximum number of iterations is reached.
+
+    If `unique_bys` is provided, the function checks that adding the generated item to the list of previously generated
+    items does not violate any of the provided uniqueness constraints. If a generated item would violate a uniqueness
+    constraint, it is skipped and the function continues to generate new items.
+
+    Args:
+        strategy: The strategy to generate each item.
+        min_length: Minimum length of the generated list.
+        max_length: Maximum length of the generated list.
+        unique_bys: A sequence of functions that return a hashable value for uniqueness checks. If any hashable value has been seen before, the item is skipped.
+        max_iter: Maximum number of iterations to try generating items.
+    """
     items = []
 
-    seen = {i: set() for i in range(len(unique_by))} if unique_by is not None else {}
+    seen = {i: set() for i in range(len(unique_bys))} if unique_bys is not None else {}
     length = random.randint(min_length, max_length)
     for _ in range(max_iter):
         if len(items) >= length:
+            # already generated enough items
             break
         item = strategy.gen()
-        if unique_by:
-            new_hashes = {i: ub(item) for i, ub in enumerate(unique_by)}
-            if any(
-                new_hash in seen_hashes
-                for new_hash, seen_hashes in zip(new_hashes.values(), seen.values(), strict=True)
-            ):
+        if unique_bys:
+            new_hashes = {}
+            for i, ub in enumerate(unique_bys):
+                try:
+                    new_hash = ub(item)
+                except UnenforceableUniqueConstraintError:
+                    # if the unique constraint cannot be enforced, don't check it for this item
+                    continue
+                new_hashes[i] = new_hash
+            if any(new_hash in seen[i] for i, new_hash in new_hashes.items()):
+                # if any unique bys are not unique, don't update hashes or items
                 continue
             for i, new_hash in new_hashes.items():
                 seen[i].add(new_hash)
