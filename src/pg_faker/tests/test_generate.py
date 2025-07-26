@@ -119,6 +119,6 @@ def test_get_table_no_possible_rows_due_to_fk_constraints(schema, parent_data, p
     table_strat = get_table(
         child_tbl_info,
         parent_data,
-        None,
+        row_count=1,
     )
     assert table_strat.gen() == []
