@@ -122,3 +122,18 @@ def test_get_table_no_possible_rows_due_to_fk_constraints(schema, parent_data, p
         row_count=1,
     )
     assert table_strat.gen() == []
+
+
+def test_uc_constraint_not_enforced_for_none():
+    tbl = TableInfo(
+        table="tbl",
+        columns={"a": text_col("a"), "b": text_col("b")},
+        unique_constraints=[("a", "b")],
+        fk_constraints=[],
+    )
+    rows = 10
+    tbl_data = get_table(
+        tbl, {}, row_count=rows, override_strategies={"a": fixed_strategy(None), "b": fixed_strategy("b")}
+    ).gen()
+
+    assert tbl_data == [{"a": None, "b": "b"}] * rows
