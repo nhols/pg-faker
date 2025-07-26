@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from psycopg import Connection, sql
 
@@ -57,26 +59,15 @@ def test_run(conn: Connection, schema: sql.SQL):
     [
         "bigint",
         "bigserial",
-        # "bit(4)",
-        # "bit varying(8)",
         "boolean",
-        # "bytea",
         "character(10)",
         "character varying(50)",
-        # "cidr",
         "date",
         "double precision",
-        # "inet",
         "integer",
-        # "interval",
         "json",
         "jsonb",
-        # "macaddr",
-        # "macaddr8",
-        # "money",
         "numeric(10, 2)",
-        # "pg_lsn",
-        # "pg_snapshot",
         "real",
         "smallint",
         "smallserial",
@@ -86,21 +77,44 @@ def test_run(conn: Connection, schema: sql.SQL):
         "time with time zone",
         "timestamp without time zone",
         "timestamp with time zone",
-        # "tsquery",
-        # "tsvector",
-        # "txid_snapshot",
         "uuid",
         "xml",
-        # "box",
-        # "circle",
-        # "line",
-        # "lseg",
-        # "path",
-        # "point",
-        # "polygon",
     ],
 )
 def test_run_all_types(conn: Connection, data_type: str):
-    schema = f"CREATE TABLE test (mycol {data_type})"
-    conn.execute(schema)
+    query = f"CREATE TABLE test (mycol {data_type})"
+    conn.execute(query)  # type: ignore
+    run(conn)
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        "bit(4)",
+        "bit varying(8)",
+        "bytea",
+        "cidr",
+        "inet",
+        "interval",
+        "macaddr",
+        "macaddr8",
+        "money",
+        "pg_lsn",
+        "pg_snapshot",
+        "tsquery",
+        "tsvector",
+        "txid_snapshot",
+        "box",
+        "circle",
+        "line",
+        "lseg",
+        "path",
+        "point",
+        "polygon",
+    ],
+)
+def test_run_all_types_xfail(conn: Connection, data_type: str):
+    pytest.xfail(f"{data_type} is expected to fail or is not yet supported.")
+    query = f"CREATE TABLE test (mycol {data_type})"
+    conn.execute(query)  # type: ignore
     run(conn)

@@ -278,11 +278,3 @@ def get_db(
         data[tbl] = table_strat.gen()
         logger.info(f"Generated {len(data[tbl])} rows for table {tbl}")
     return data
-
-
-for i in range(10):
-    for j in range(10):
-        if i + j > 10:
-            print("b")
-            break
-        print(f"i: {i}, j: {j}")
