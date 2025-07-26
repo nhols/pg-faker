@@ -1,5 +1,6 @@
 import logging
-from collections.abc import Callable, Generator, Hashable, Iterable, Sequence
+import time
+from collections.abc import Callable, Generator, Hashable, Iterable
 from typing import Any
 
 from .pg import (
@@ -256,19 +257,22 @@ def get_table(
 
 def get_db(
     schema: list[TableInfo],
+    data: dict[TableName, list[Row]] | None = None,
     row_counts: RowCounts | None = None,
     tbl_override_strategies: dict[TableName, dict[ColName, Strategy[Any, Any]]] | None = None,
 ) -> dict[TableName, list[Row]]:
     logger.info("Generating database schema")
+    data = data or {}
     strats: dict[TableName, Strategy[list[Row], Any]] = {}
-    data: dict[TableName, list[Row]] = {}
     schema_ = {tbl_info["table"]: tbl_info for tbl_info in schema}
     sorted_tbls = topo_sort_tables(
         {tbl_info["table"]: tbl_info["fk_constraints"] for tbl_info in schema},
         [tbl_info["table"] for tbl_info in schema],
     )
+
     for tbl in sorted_tbls:
         logger.info(f"Processing table: {tbl}")
+        start_time = time.perf_counter()
         table_strat = get_table(
             schema_[tbl],
             data,
@@ -277,5 +281,6 @@ def get_db(
         )
         strats[tbl] = table_strat
         data[tbl] = table_strat.gen()
-        logger.info(f"Generated {len(data[tbl])} rows for table {tbl}")
+        elapsed = time.perf_counter() - start_time
+        logger.info(f"Generated {len(data[tbl])} rows for table {tbl} in {elapsed:.3f} seconds")
     return data

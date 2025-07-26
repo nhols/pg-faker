@@ -1,9 +1,12 @@
 import logging
+from typing import Any
 
 from psycopg import Connection, sql
 
+from pg_faker.strategies import Strategy
+
 from .generate import Row, TableName, get_db
-from .pg import get_schema
+from .pg import ColName, get_schema
 
 
 def insert_data(conn: Connection, data: dict[TableName, list[Row]]) -> None:
@@ -22,9 +25,14 @@ def insert_data(conn: Connection, data: dict[TableName, list[Row]]) -> None:
                 cursor.executemany(sql_query, values)
 
 
-def run(conn: Connection, row_counts: dict[TableName, int] | None = None) -> None:
+def run(
+    conn: Connection,
+    row_counts: dict[TableName, int] | None = None,
+    tbl_override_strategies: dict[TableName, dict[ColName, Strategy[Any, Any]]] | None = None,
+) -> None:
     schema = get_schema(conn)
-    data = get_db(schema, row_counts)
+    # TODO load existing data from the database and pass here
+    data = get_db(schema, row_counts=row_counts, tbl_override_strategies=tbl_override_strategies)
     for tbl, rows in data.items():
         logging.info(f"Inserting into {tbl} with {len(rows)} rows")
         with conn.cursor() as cursor:
