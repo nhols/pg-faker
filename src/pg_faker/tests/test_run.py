@@ -39,15 +39,28 @@ CREATE TABLE grandchild (
     name VARCHAR(100)
 );
 """
+README_SCHEMA = """
+CREATE TABLE "user" (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE post (
+    id SERIAL PRIMARY KEY,
+    author_id INTEGER NOT NULL REFERENCES "user"(id),
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    published_at TIMESTAMPTZ,
+    UNIQUE (author_id, title)
+);
+"""
 
 
 @pytest.mark.parametrize(
     "schema",
-    [
-        SIMPLE_SCHEMA,
-        FK_SCHEMA,
-        MULTI_FK_SCHEMA,
-    ],
+    [SIMPLE_SCHEMA, FK_SCHEMA, MULTI_FK_SCHEMA, README_SCHEMA],
 )
 def test_run(conn: Connection, schema: sql.SQL):
     conn.execute(schema)

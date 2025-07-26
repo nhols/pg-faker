@@ -229,6 +229,7 @@ def get_uc_hasher(uc: tuple[ColName, ...]) -> Callable[[Row], Hashable]:
             raise UnenforceableUniqueConstraintError(
                 f"Row {row} has `NULL` values in unique constraint columns {uc}, cannot enforce unique constraint"
             )
+        return hash
 
     return row_hasher
 
