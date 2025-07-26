@@ -27,6 +27,7 @@ from .strategies import (
     nullable,
     numeric_strategy,
     one_of,
+    strategy_wrapper,
     time_strategy,
     timestamp_strategy,
     uuid_strategy,
@@ -168,21 +169,19 @@ def get_fk_constrained_options(
     return seen_cols, one_of(sampled_constrained_rows) if sampled_constrained_rows else None
 
 
+class UnSatisfiableFkConstraintError(Exception):
+    """
+    Raised when a foreign key constraint cannot be satisfied due to lack of data in the foreign table.
+    """
+
+
+@strategy_wrapper
 def get_row(
     col_infos: dict[ColName, ColInfo],
     fk_constraints: list[FkConstraint],
     data: dict[TableName, list[Row]],
     override_strategies: dict[ColName, Strategy[Any, Any]] | None = None,
-) -> (
-    Strategy[
-        Row,
-        [
-            dict[str, Strategy[Any, Any]],
-            Sequence[Strategy[dict[str, Any], Any]] | None,
-        ],
-    ]
-    | None
-):
+) -> Row:
     override_strategies = override_strategies or {}
 
     fk_constrained_cols = {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}
@@ -201,8 +200,9 @@ def get_row(
     ]
     fk_constrained_cols, fk_strat = get_fk_constrained_options(enforceable_fk_constraints, data)
     if fk_constrained_cols and fk_strat is None:
-        logger.info(f"No values found for foreign key constrained columns: {fk_constrained_cols}")
-        return None
+        msg = f"No values found for foreign key constrained columns: {fk_constrained_cols}"
+        raise UnSatisfiableFkConstraintError(msg)
+
     if ovlp := fk_constrained_cols.intersection(override_strategies.keys()):
         logger.warning(f"Override strategy for foreign key constrained columns will be ignored: {ovlp}")
     already_handled_cols = null_fk_col_names.union(fk_constrained_cols)
@@ -214,7 +214,7 @@ def get_row(
     others = list(null_fk_col_strats)
     if fk_strat is not None:
         others = others + [fk_strat]
-    return dict_strategy(strategies, others=others or None)
+    return dict_strategy(strategies, others=others or None).gen()
 
 
 def get_uc_hasher(uc: tuple[ColName, ...]) -> Callable[[Row], Hashable]:
@@ -237,29 +237,13 @@ def get_table(
     data: dict[TableName, list[Row]],
     row_count: int | None,
     override_strategies: dict[ColName, Strategy[Any, Any]] | None = None,
-) -> (
-    Strategy[
-        list[Row],
-        [
-            Strategy[
-                Row,
-                [
-                    dict[str, Strategy[Any, Any]],
-                    Sequence[Strategy[dict[str, Any], Any]] | None,
-                ],
-            ],
-            int,
-            int,
-            Sequence[Callable[[Row], Hashable]] | None,
-            int,
-        ],
-    ]
-    | Strategy[list, [list]]
-):
-    row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data, override_strategies)
-    if row_strategy is None:
+) -> Strategy[list[Row], Any]:
+    try:
+        row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data, override_strategies)
+    except UnSatisfiableFkConstraintError:
         logger.warning(f"No row strategy generated for table {table_info['table']}, returning empty list strategy")
         return fixed_strategy([])
+
     unique_bys = tuple(get_uc_hasher(uc) for uc in table_info["unique_constraints"])
     return list_strategy(
         row_strategy,
