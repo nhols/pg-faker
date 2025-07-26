@@ -190,7 +190,7 @@ def get_row(
     for fk_col in fk_constrained_cols:
         strat = override_strategies.get(fk_col) or col_info_to_strategy(col_infos[fk_col])
         if strat.gen() is None:
-            null_fk_col_strats.append(fixed_strategy({"fk_col": None}))
+            null_fk_col_strats.append(fixed_strategy({fk_col: None}))
             null_fk_col_names.add(fk_col)
     # NULL != NULL in SQL: If an FK constrained col value is NULL, that fk constraint is not enforced on that row
     enforceable_fk_constraints = [
@@ -240,6 +240,7 @@ def get_table(
 ) -> Strategy[list[Row], Any]:
     try:
         row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data, override_strategies)
+        _ = row_strategy.gen()
     except UnSatisfiableFkConstraintError:
         logger.warning(f"No row strategy generated for table {table_info['table']}, returning empty list strategy")
         return fixed_strategy([])
