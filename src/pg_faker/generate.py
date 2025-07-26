@@ -56,6 +56,7 @@ def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
     elif pgtype in ("varchar", "text", "bpchar"):
         mapped_strat = None
         if not col_info["character_maximum_length"]:
+            # TODO make this configurable
             for words, map_strat in COL_NAME_STRATEGY_MAPPINGS.items():
                 if all(word in col_info["col_name"] for word in words):
                     mapped_strat = map_strat
@@ -130,12 +131,12 @@ def cross_join(rows1: Iterable[Row], rows2: Iterable[Row]) -> Generator[Row, Non
             yield {**row1, **row2}
 
 
-# TODO if a fk exists (p1, p2) = (c1, c2) + c1 and/or is nullable, the fk is only enforced if both c1 and c2 are not null
 def get_fk_constrained_options(
     fk_constraints: list[FkConstraint],
     data: dict[TableName, list[Row]],
     max_rows: int = MAX_ROWS,
 ) -> tuple[set[ColName], Strategy[Row, [list[Row]]] | None]:
+    # TODO break fk_constraints into connected subgraphs to decrease combinatorial space of sampled_constrained_rows
     seen_cols = set()
     first_loop = True
     constrained_rows = []
@@ -143,6 +144,7 @@ def get_fk_constrained_options(
         foreign_table = fk["foreign_table"]
         local_cols = set(fk["local_foreign_mapping"].keys())
         foreign_cols = set(fk["local_foreign_mapping"].values())
+        # TODO randomise order of foreign table rows to avoid bias towards the first rows if `max_rows` is hit`
         rows = [select(row, foreign_cols) for row in data.get(foreign_table, [])]
         # NULL != NULL A row in the foreign table must have all foreign key columns not None to be referencable
         rows = [row for row in rows if all(value is not None for value in row.values())]
@@ -165,8 +167,10 @@ def get_fk_constrained_options(
         if len(sampled_constrained_rows) < max_rows:
             sampled_constrained_rows.append(row)
         else:
+            logger.warning(
+                f"Combinatorial space of foreign key constrained rows has reached max of {max_rows}, stopping sampling"
+            )
             break
-    # TODO allow nulls on all nullable columns
     return seen_cols, one_of(sampled_constrained_rows) if sampled_constrained_rows else None
 
 
@@ -262,6 +266,7 @@ def get_db(
     row_counts: RowCounts | None = None,
     tbl_override_strategies: dict[TableName, dict[ColName, Strategy[Any, Any]]] | None = None,
 ) -> dict[TableName, list[Row]]:
+    # TODO allow for composite column overrides
     logger.info("Generating database schema")
     data = data or {}
     strats: dict[TableName, Strategy[list[Row], Any]] = {}
