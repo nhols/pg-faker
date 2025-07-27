@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 from collections.abc import Callable, Generator, Hashable, Iterable
 from typing import Any
@@ -40,7 +41,6 @@ logger = logging.getLogger(__name__)
 
 MIN_ROWS = 10
 MAX_ROWS = 1000
-MAX_JOIN_ROWS = 100_000
 
 
 def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
@@ -132,46 +132,38 @@ def cross_join(rows1: Iterable[Row], rows2: Iterable[Row]) -> Generator[Row, Non
 
 
 def get_fk_constrained_options(
-    fk_constraints: list[FkConstraint],
-    data: dict[TableName, list[Row]],
-    max_rows: int = MAX_ROWS,
-) -> tuple[set[ColName], Strategy[Row, [list[Row]]] | None]:
+    fk_constraints: list[FkConstraint], data: dict[TableName, list[Row]]
+) -> tuple[set[ColName], Strategy[Row, [Row]] | None]:
     # TODO break fk_constraints into connected subgraphs to decrease combinatorial space of sampled_constrained_rows
+    if not fk_constraints:
+        return set(), None
     seen_cols = set()
-    first_loop = True
-    constrained_rows = []
+    constrained_rows: Iterable[Row] = iter([{}])
     for fk in fk_constraints:
         foreign_table = fk["foreign_table"]
         local_cols = set(fk["local_foreign_mapping"].keys())
         foreign_cols = set(fk["local_foreign_mapping"].values())
-        # TODO randomise order of foreign table rows to avoid bias towards the first rows if `max_rows` is hit`
         rows = [select(row, foreign_cols) for row in data.get(foreign_table, [])]
         # NULL != NULL A row in the foreign table must have all foreign key columns not None to be referencable
         rows = [row for row in rows if all(value is not None for value in row.values())]
         if not rows:
             return {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}, None
+        # TODO above loop logic is run once per row in the local table but only needs to be run once, push this logic to get_table?
+        random.shuffle(rows)
         col_map = {v: k for k, v in fk["local_foreign_mapping"].items()}
         rows = [rename(row, col_map) for row in rows]
         overlap_cols = local_cols.intersection(seen_cols)
         seen_cols.update(local_cols)
-        if first_loop:
-            constrained_rows = rows
-            first_loop = False
-            continue
         if overlap_cols:
             constrained_rows = inner_join(constrained_rows, rows, on_cols=overlap_cols)
         else:
             constrained_rows = cross_join(constrained_rows, rows)
-    sampled_constrained_rows: list[Row] = []
-    for row in constrained_rows:
-        if len(sampled_constrained_rows) < max_rows:
-            sampled_constrained_rows.append(row)
-        else:
-            logger.warning(
-                f"Combinatorial space of foreign key constrained rows has reached max of {max_rows}, stopping sampling"
-            )
-            break
-    return seen_cols, one_of(sampled_constrained_rows) if sampled_constrained_rows else None
+    try:
+        selected_row = next(constrained_rows)
+    except StopIteration:
+        logger.warning("No rows found that satisfy foreign key constraints")
+        selected_row = None
+    return seen_cols, fixed_strategy(selected_row) if selected_row else None
 
 
 class UnSatisfiableFkConstraintError(Exception):
