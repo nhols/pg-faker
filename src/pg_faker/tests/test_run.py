@@ -1,3 +1,4 @@
+import pathlib
 from datetime import date
 
 import pytest
@@ -5,63 +6,26 @@ from psycopg import Connection, sql
 
 from pg_faker import run
 
-SIMPLE_SCHEMA = """
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100),
-    email VARCHAR(100)
-);
-"""
-
-FK_SCHEMA = """CREATE TABLE parent (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100)
-);
-CREATE TABLE child (
-    id SERIAL PRIMARY KEY,
-    parent_id INTEGER REFERENCES parent(id),
-    name VARCHAR(100)
-);
-"""
-
-MULTI_FK_SCHEMA = """CREATE TABLE parent (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100)
-);
-CREATE TABLE child (
-    id SERIAL PRIMARY KEY,
-    parent_id INTEGER REFERENCES parent(id),
-    name VARCHAR(100)
-);
-CREATE TABLE grandchild (
-    id SERIAL PRIMARY KEY,
-    child_id INTEGER REFERENCES child(id),
-    name VARCHAR(100)
-);
-"""
-README_SCHEMA = """
-CREATE TABLE "user" (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE,
-    name TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE post (
-    id SERIAL PRIMARY KEY,
-    author_id INTEGER NOT NULL REFERENCES "user"(id),
-    title VARCHAR(255) NOT NULL,
-    content TEXT,
-    published_at TIMESTAMPTZ,
-    UNIQUE (author_id, title)
-);
-"""
+SCHEMA_DIR = pathlib.Path(__file__).parent / "schemas"
 
 
-@pytest.mark.parametrize(
-    "schema",
-    [SIMPLE_SCHEMA, FK_SCHEMA, MULTI_FK_SCHEMA, README_SCHEMA],
-)
+def read_schema(filename: str) -> str:
+    with open(SCHEMA_DIR / filename, "r") as f:
+        return f.read()
+
+
+SCHEMA_PARAMS = [
+    pytest.param(read_schema(fname), id=fname.rsplit(".", 1)[0])
+    for fname in (
+        "simple.sql",
+        "fk.sql",
+        "multi_fk.sql",
+        "readme.sql",
+    )
+]
+
+
+@pytest.mark.parametrize("schema", SCHEMA_PARAMS)
 def test_run(conn: Connection, schema: sql.SQL):
     conn.execute(schema)
     run(conn)
