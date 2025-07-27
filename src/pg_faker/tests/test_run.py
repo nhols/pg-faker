@@ -9,9 +9,9 @@ from pg_faker import run
 SCHEMA_DIR = pathlib.Path(__file__).parent / "schemas"
 
 
-def read_schema(filename: str) -> str:
+def read_schema(filename: str) -> sql.SQL:
     with open(SCHEMA_DIR / filename, "r") as f:
-        return f.read()
+        return sql.SQL(f.read())  # type: ignore
 
 
 SCHEMA_PARAMS = [
@@ -21,6 +21,9 @@ SCHEMA_PARAMS = [
         "fk.sql",
         "multi_fk.sql",
         "readme.sql",
+        "keyword.sql",
+        "all_nullable.sql",
+        "composite_pk.sql",
     )
 ]
 
@@ -29,6 +32,13 @@ SCHEMA_PARAMS = [
 def test_run(conn: Connection, schema: sql.SQL):
     conn.execute(schema)
     run(conn)
+
+
+def test_circular_fk(conn: Connection):
+    schema = read_schema("circular_fk.sql")
+    conn.execute(schema)
+    with pytest.raises(ValueError, match="Cycle detected in foreign key constraints"):
+        run(conn)
 
 
 @pytest.mark.parametrize(
