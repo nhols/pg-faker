@@ -258,7 +258,7 @@ By supplying a custom strategy for the `age` column, you ensure that all generat
   - `timestamptz`, `timestamp`
   - `time`, `timetz`
   - `varchar`, `text`, `bpchar`
-  - `numeric`, `money`, and types starting with `float`
+  - `numeric`, and types starting with `float`
   - `bool`
   - `int2`, `int4`, `int8`
   - `json`, `jsonb`
