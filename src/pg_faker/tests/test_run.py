@@ -1,5 +1,4 @@
 import pathlib
-from datetime import date
 
 import pytest
 from psycopg import Connection, sql
@@ -24,6 +23,8 @@ SCHEMA_PARAMS = [
         "keyword.sql",
         "all_nullable.sql",
         "composite_pk.sql",
+        "complicated.sql",
+        "enum.sql",
     )
 ]
 
