@@ -72,7 +72,7 @@ In this example, `pg-faker` generates 3 users and 5 posts with default data base
 
 You can customize the data generation by providing your own strategies. A strategy is a function that returns a value for a column. You can create one easily using the `@strategy_wrapper` decorator.
 
-Let's create a custom strategy to generate post titles that start with "How to".
+Let's create a custom strategy to generate post titles that start with "How to" and a strategy to generate post contents with real words.
 
 ```python
 import psycopg
@@ -154,7 +154,7 @@ In this example:
 - We define `how_to_title_strategy` to generate our desired titles.
 - We pass this strategy to `run()` via `tbl_override_strategies`.
 - `pg-faker` handles the rest:
-    - It sees that `post.author_id` is a foreign key to `user.id` and will only use `id`s from the generated users.
+    - It first generates records for the parent table (`user`) before generating records for the child table (`post`), ensuring that all foreign key constraints are satisfied and `post.author_id` always references an existing `user.id`.
     - It respects the `UNIQUE` constraints on `user.email` and the composite key `(post.author_id, post.title)`.
     - It generates appropriate data for all other columns based on their types (`TEXT`, `TIMESTAMPTZ`, etc.).
 
@@ -202,3 +202,90 @@ with psycopg.connect("dbname=test user=test password=test host=localhost") as co
 ```
 
 This example achieves a similar result to the `run()` example but gives you an intermediate `data` object to work with.
+
+
+## Handling CHECK Constraints
+
+`pg-faker` does not automatically detect or enforce `CHECK` constraints in your schema. This means that randomly generated data may violate these constraints, resulting in errors when inserting data into the database.
+
+### Example: CHECK Constraint on Age
+
+Suppose you have a table with a `CHECK` constraint:
+
+```sql
+CREATE TABLE person (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INTEGER NOT NULL CHECK (age >= 18)
+);
+```
+
+If you use the default data generation, `pg-faker` may generate values for `age` that are less than 18, causing an error when inserting rows.
+
+#### Solution: Use a Custom Strategy
+
+You can provide a custom strategy to ensure that only valid values are generated for columns with `CHECK` constraints. For example:
+
+```python
+from pg_faker import run
+from pg_faker.strategies import int_strategy
+
+override_strategies = {
+    "public.person": {
+        "age": int_strategy(min_value=18),
+    }
+}
+
+run(
+    conn,
+    tbl_override_strategies=override_strategies,
+)
+```
+
+By supplying a custom strategy for the `age` column, you ensure that all generated values satisfy the `CHECK (age >= 18)` constraint, preventing insertion errors.
+
+
+## Limitations
+
+`pg-faker` currently has the following limitations:
+
+- **Cyclic Foreign Key Constraints**: Schemas with cycles in their foreign key relationships are not supported. Attempting to use `pg-faker` with such schemas will result in an error ("Cycle detected in foreign key constraints").
+
+- **Supported Data Types**: The data types supported by `pg-faker` are determined by the logic in `col_info_to_strategy`. The following PostgreSQL types are supported:
+
+  - `uuid`
+  - `date`
+  - `timestamptz`, `timestamp`
+  - `time`, `timetz`
+  - `varchar`, `text`, `bpchar`
+  - `numeric`, `money`, and types starting with `float`
+  - `bool`
+  - `int2`, `int4`, `int8`
+  - `json`, `jsonb`
+  - `enum` (columns with enum values)
+  - `bit`, `varbit`
+  - `xml`
+
+Any other PostgreSQL data types are not currently supported and will result in an error if encountered. This includes, but is not limited to:
+
+  - `array`
+  - `bytea`
+  - `cidr`
+  - `inet`
+  - `interval`
+  - `macaddr`
+  - `macaddr8`
+  - `pg_lsn`
+  - `pg_snapshot`
+  - `tsquery`
+  - `tsvector`
+  - `txid_snapshot`
+  - `box`
+  - `circle`
+  - `line`
+  - `lseg`
+  - `path`
+  - `point`
+  - `polygon`
+
+If you attempt to use `pg-faker` with an unsupported type, you will receive an error such as `ValueError: Unsupported pgtype: ...`. Support for additional types may be added in future releases. Contributions are welcome!

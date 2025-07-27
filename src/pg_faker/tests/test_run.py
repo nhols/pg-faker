@@ -4,6 +4,7 @@ import pytest
 from psycopg import Connection, sql
 
 from pg_faker import run
+from pg_faker.strategies import int_strategy
 
 SCHEMA_DIR = pathlib.Path(__file__).parent / "schemas"
 
@@ -13,19 +14,11 @@ def read_schema(filename: str) -> sql.SQL:
         return sql.SQL(f.read())  # type: ignore
 
 
+NOT_SUPPORTED = {"circular_fk", "array"}
 SCHEMA_PARAMS = [
-    pytest.param(read_schema(fname), id=fname.rsplit(".", 1)[0])
-    for fname in (
-        "simple.sql",
-        "fk.sql",
-        "multi_fk.sql",
-        "readme.sql",
-        "keyword.sql",
-        "all_nullable.sql",
-        "composite_pk.sql",
-        "complicated.sql",
-        "enum.sql",
-    )
+    pytest.param(f.read_text(), id=f.stem)
+    for f in SCHEMA_DIR.glob("*.sql")
+    if f.is_file() and f.stem not in NOT_SUPPORTED
 ]
 
 
@@ -39,6 +32,13 @@ def test_circular_fk(conn: Connection):
     schema = read_schema("circular_fk.sql")
     conn.execute(schema)
     with pytest.raises(ValueError, match="Cycle detected in foreign key constraints"):
+        run(conn)
+
+
+def test_array(conn: Connection):
+    schema = read_schema("array.sql")
+    conn.execute(schema)
+    with pytest.raises(ValueError, match="Unsupported pgtype:"):
         run(conn)
 
 
@@ -106,3 +106,18 @@ def test_run_all_types_xfail(conn: Connection, data_type: str):
     query = f"CREATE TABLE test (mycol {data_type})"
     conn.execute(query)  # type: ignore
     run(conn)
+
+
+def test_run_readme_eg_check_constraint(conn: Connection):
+    query = "CREATE TABLE person (id SERIAL PRIMARY KEY, name TEXT NOT NULL, age INTEGER NOT NULL CHECK (age >= 18));"
+    conn.execute(query)
+    override_strategies = {
+        "public.person": {
+            "age": int_strategy(min_value=18),
+        }
+    }
+
+    run(
+        conn,
+        tbl_override_strategies=override_strategies,
+    )
