@@ -62,6 +62,12 @@ xml_strategy = strategy_wrapper(fake.xml)
 
 
 @strategy_wrapper
+def bit_string_strategy(min_length: int = 0, max_length: int = 100) -> str:
+    length = random.randint(min_length, max_length)
+    return "".join(fake.random.choice(["0", "1"]) for _ in range(length))
+
+
+@strategy_wrapper
 def counterparty_name_strategy() -> str:
     individual = fake.name() + fake.company_suffix()
     return fake.random_element([fake.company(), individual])

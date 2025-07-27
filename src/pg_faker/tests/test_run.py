@@ -47,6 +47,8 @@ def test_array(conn: Connection):
     [
         "bigint",
         "bigserial",
+        "bit(3)",
+        "bit varying(5)",
         "boolean",
         "character(10)",
         "character varying(50)",
@@ -78,8 +80,6 @@ def test_run_all_types(conn: Connection, data_type: str):
 @pytest.mark.parametrize(
     "data_type",
     [
-        "bit(4)",
-        "bit varying(8)",
         "bytea",
         "cidr",
         "inet",
@@ -99,13 +99,15 @@ def test_run_all_types(conn: Connection, data_type: str):
         "path",
         "point",
         "polygon",
+        "tsrange",
+        "int[]",
     ],
 )
 def test_run_all_types_xfail(conn: Connection, data_type: str):
-    pytest.xfail(f"{data_type} is expected to fail or is not yet supported.")
     query = f"CREATE TABLE test (mycol {data_type})"
     conn.execute(query)  # type: ignore
-    run(conn)
+    with pytest.raises(ValueError, match="Unsupported pgtype:"):
+        run(conn)
 
 
 def test_run_readme_eg_check_constraint(conn: Connection):

@@ -18,6 +18,7 @@ from .strategies import (
     Strategy,
     UnenforceableUniqueConstraintError,
     binary_strategy,
+    bit_string_strategy,
     bool_strategy,
     char_strategy,
     date_strategy,
@@ -66,7 +67,7 @@ def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
             if col_info["character_maximum_length"]
             else char_strategy()
         )
-    elif pgtype in ("numeric", "money") or pgtype.startswith("float"):
+    elif pgtype in ("numeric") or pgtype.startswith("float"):
         precision = col_info["numeric_precision"] or 53
         scale = col_info["numeric_scale"] or 0
         strat = numeric_strategy(left_digits=precision - scale, right_digits=scale)
@@ -82,11 +83,10 @@ def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
     elif col_info["enum_values"]:
         strat = one_of(col_info["enum_values"])
     elif pgtype in ("bit", "varbit"):
-        strat = (
-            binary_strategy(length=col_info["character_maximum_length"])
-            if col_info["character_maximum_length"]
-            else binary_strategy()
-        )
+        n = col_info["character_maximum_length"]
+        assert n is not None
+        min_len = n if pgtype == "bit" else 0
+        strat = bit_string_strategy(min_length=min_len, max_length=n)
     elif pgtype == "xml":
         strat = xml_strategy()
     else:
