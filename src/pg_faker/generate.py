@@ -131,12 +131,12 @@ def cross_join(rows1: Iterable[Row], rows2: Iterable[Row]) -> Generator[Row, Non
             yield {**row1, **row2}
 
 
-def get_fk_constrained_options(
+def gen_fk_constrained_values(
     fk_constraints: list[FkConstraint], data: dict[TableName, list[Row]]
-) -> tuple[set[ColName], Strategy[Row, [Row]] | None]:
+) -> Strategy[Row, [Row]] | None:
     # TODO break fk_constraints into connected subgraphs to decrease combinatorial space of sampled_constrained_rows
     if not fk_constraints:
-        return set(), None
+        return None
     seen_cols = set()
     constrained_rows: Iterable[Row] = iter([{}])
     for fk in fk_constraints:
@@ -147,7 +147,7 @@ def get_fk_constrained_options(
         # NULL != NULL A row in the foreign table must have all foreign key columns not None to be referencable
         rows = [row for row in rows if all(value is not None for value in row.values())]
         if not rows:
-            return {col for fk in fk_constraints for col in fk["local_foreign_mapping"].keys()}, None
+            return None
         # TODO above loop logic is run once per row in the local table but only needs to be run once, push this logic to get_table?
         random.shuffle(rows)
         col_map = {v: k for k, v in fk["local_foreign_mapping"].items()}
@@ -160,10 +160,10 @@ def get_fk_constrained_options(
             constrained_rows = cross_join(constrained_rows, rows)
     try:
         selected_row = next(constrained_rows)
+        return fixed_strategy(selected_row)
     except StopIteration:
         logger.warning("No rows found that satisfy foreign key constraints")
-        selected_row = None
-    return seen_cols, fixed_strategy(selected_row) if selected_row else None
+        return None
 
 
 class UnSatisfiableFkConstraintError(Exception):
@@ -189,13 +189,14 @@ def get_row(
         if strat.gen() is None:
             null_fk_col_strats.append(fixed_strategy({fk_col: None}))
             null_fk_col_names.add(fk_col)
+    fk_constrained_cols = fk_constrained_cols - null_fk_col_names
     # NULL != NULL in SQL: If an FK constrained col value is NULL, that fk constraint is not enforced on that row
     enforceable_fk_constraints = [
         fk_constraint
         for fk_constraint in fk_constraints
         if not null_fk_col_names.intersection(fk_constraint["local_foreign_mapping"].keys())
     ]
-    fk_constrained_cols, fk_strat = get_fk_constrained_options(enforceable_fk_constraints, data)
+    fk_strat = gen_fk_constrained_values(enforceable_fk_constraints, data)
     if fk_constrained_cols and fk_strat is None:
         msg = f"No values found for foreign key constrained columns: {fk_constrained_cols}"
         raise UnSatisfiableFkConstraintError(msg)

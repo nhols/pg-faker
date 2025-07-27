@@ -1,6 +1,6 @@
 import pytest
 
-from pg_faker.generate import UnSatisfiableFkConstraintError, get_fk_constrained_options, get_row, get_table
+from pg_faker.generate import UnSatisfiableFkConstraintError, gen_fk_constrained_values, get_row, get_table
 from pg_faker.pg import ColInfo, FkConstraint, TableInfo
 from pg_faker.strategies import fixed_strategy
 
@@ -62,12 +62,11 @@ def parent_data() -> dict[str, list[dict[str, str]]]:
 
 def test_get_fk_constrained_options(schema, parent_data):
     child_tbl_info = schema[2]
-    cols, strat = get_fk_constrained_options(fk_constraints=child_tbl_info["fk_constraints"], data=parent_data)
+    strat = gen_fk_constrained_values(fk_constraints=child_tbl_info["fk_constraints"], data=parent_data)
 
-    assert cols == {"a", "b", "c"}
     assert strat is not None
-    allowed_rows = strat.args[0]
-    assert len(allowed_rows) == 5
+    generated_row = strat.args[0]
+    assert generated_row in [{"a": f"a{i}", "b": f"b{i}", "c": f"c{i}"} for i in range(5, 10)]
 
 
 def test_get_row_null_local_col_in_fk_constraint(schema, parent_data):
