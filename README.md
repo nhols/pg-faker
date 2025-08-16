@@ -1,3 +1,8 @@
+[![Run tests](https://github.com/nhols/pg-faker/actions/workflows/run-tests.yml/badge.svg)](https://github.com/nhols/pg-faker/actions/workflows/run-tests.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![PostgreSQL 12+](https://img.shields.io/badge/postgresql-12+-blue.svg)](https://www.postgresql.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # pg-faker
 
 `pg-faker` is a Python library that leverages [Faker](https://github.com/xfxf/faker-python) to generate fake data for PostgreSQL databases. It introspects your database schema to understand column types, relationships (foreign keys), and constraints (unique constraints), and then populates your tables with procedurally generated data that confirms to the schema.
