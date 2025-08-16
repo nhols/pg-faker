@@ -2,6 +2,22 @@
 
 `pg-faker` is a Python library that leverages [Faker](https://github.com/xfxf/faker-python) to generate fake data for PostgreSQL databases. It introspects your database schema to understand column types, relationships (foreign keys), and constraints (unique constraints), and then populates your tables with procedurally generated data that confirms to the schema.
 
+## Table of Contents
+
+- [High-Level Description](#high-level-description)
+- [How `run()` Works](#how-run-works)
+- [Example Usage](#example-usage)
+  - [Using `run()`](#using-run)
+  - [Overriding Generation Strategies](#overriding-generation-strategies)
+  - [Using `get_db()`](#using-get_db)
+- [Configurable Column Name Strategy Mappings](#configurable-column-name-strategy-mappings)
+  - [Default Column Name Mappings](#default-column-name-mappings)
+  - [Customizing Column Name Mappings](#customizing-column-name-mappings)
+  - [How Column Name Matching Works](#how-column-name-matching-works)
+  - [Using with `get_db()`](#using-with-get_db)
+- [Handling CHECK Constraints](#handling-check-constraints)
+- [Limitations](#limitations)
+
 ## High-Level Description
 
 The library is designed to make it easy to populate a development or testing database with sensible data. It automatically handles most common data types, follows foreign key relationships to ensure data integrity, and respects unique constraints.
@@ -206,11 +222,13 @@ This example achieves a similar result to the `run()` example but gives you an i
 
 ## Configurable Column Name Strategy Mappings
 
-`pg-faker` automatically generates more realistic data for columns based on their names. For example, a column named `email` will automatically generate email addresses instead of random strings. This is done through a configurable mapping system.
+`pg-faker` automatically generates more realistic data for **text columns** (`TEXT`, `VARCHAR`, `CHAR`) based on their names. For example, a text column named `email` will automatically generate email addresses instead of random strings. This is done through a configurable mapping system.
+
+**Note:** Column name strategy mappings only apply to text columns that don't have a specific character length limit. Columns with other data types (integers, dates, etc.) or text columns with length constraints will use their appropriate type-specific strategies.
 
 ### Default Column Name Mappings
 
-By default, `pg-faker` includes the following column name to strategy mappings:
+By default, `pg-faker` includes the following column name to strategy mappings for text columns:
 
 - `address` → addresses
 - `name` → person names
@@ -226,7 +244,7 @@ By default, `pg-faker` includes the following column name to strategy mappings:
 
 ### Customizing Column Name Mappings
 
-You can customize these mappings by providing your own `col_name_strategy_mappings` parameter to either `run()` or `get_db()`:
+You can customize these mappings by providing your own `col_name_strategy_mappings` parameter to either `run()` or `get_db()`. These custom mappings will only affect text columns without length constraints:
 
 ```python
 import psycopg
@@ -261,6 +279,11 @@ The matching is based on whether all words in a mapping key are present in the c
 - A mapping key `("email",)` will match columns like `email`, `user_email`, `contact_email`, etc.
 
 The first matching mapping is used, so more specific mappings should be listed before more general ones.
+
+**Important:** Column name mappings only apply to text columns (`TEXT`, `VARCHAR`, `CHAR`) without character length constraints. For example:
+- `email TEXT` → will use column name mapping
+- `email VARCHAR(255)` → will use random string generation (length-constrained)
+- `created_at TIMESTAMP` → will use timestamp generation (non-text column)
 
 ### Using with `get_db()`
 
