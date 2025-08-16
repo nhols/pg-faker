@@ -1,5 +1,5 @@
 [project]
-name = "pg-faker"
+name = "pgsql-faker"
 version = "0.1.0"
 description = "Faker powered PostgreSQL data generation"
 readme = "README.md"
