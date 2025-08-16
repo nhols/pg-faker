@@ -7,6 +7,17 @@ from pg_faker.strategies import Strategy
 
 from .generate import Row, TableName, get_db
 from .pg import ColName, get_schema
+from .text_col_map import COL_NAME_STRATEGY_MAPPINGS
+
+__all__ = [
+    "run",
+    "get_db",
+    "insert_data",
+    "COL_NAME_STRATEGY_MAPPINGS",
+    "Row",
+    "TableName",
+    "ColName",
+]
 
 
 def insert_data(conn: Connection, data: dict[TableName, list[Row]]) -> None:
@@ -29,10 +40,16 @@ def run(
     conn: Connection,
     row_counts: dict[TableName, int] | None = None,
     tbl_override_strategies: dict[TableName, dict[ColName, Strategy[Any, Any]]] | None = None,
+    col_name_strategy_mappings: dict[tuple[str, ...], Strategy[str, Any]] | None = None,
 ) -> None:
     schema = get_schema(conn)
     # TODO load existing data from the database and pass here
-    data = get_db(schema, row_counts=row_counts, tbl_override_strategies=tbl_override_strategies)
+    data = get_db(
+        schema,
+        row_counts=row_counts,
+        tbl_override_strategies=tbl_override_strategies,
+        col_name_strategy_mappings=col_name_strategy_mappings,
+    )
     for tbl, rows in data.items():
         logging.info(f"Inserting into {tbl} with {len(rows)} rows")
         with conn.cursor() as cursor:

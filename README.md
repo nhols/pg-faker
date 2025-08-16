@@ -204,6 +204,85 @@ with psycopg.connect("dbname=test user=test password=test host=localhost") as co
 This example achieves a similar result to the `run()` example but gives you an intermediate `data` object to work with.
 
 
+## Configurable Column Name Strategy Mappings
+
+`pg-faker` automatically generates more realistic data for columns based on their names. For example, a column named `email` will automatically generate email addresses instead of random strings. This is done through a configurable mapping system.
+
+### Default Column Name Mappings
+
+By default, `pg-faker` includes the following column name to strategy mappings:
+
+- `address` → addresses
+- `name` → person names
+- `email` → email addresses
+- `phone_number`, `telephone` → phone numbers
+- `city` → city names
+- `country` → country names
+- `zip_code`, `postal_code` → zip codes
+- `street`, `street_address` → street addresses
+- `currency` → currency codes
+- `company name` → company names
+- `counterparty name`, `customer name`, `supplier name` → counterparty names
+
+### Customizing Column Name Mappings
+
+You can customize these mappings by providing your own `col_name_strategy_mappings` parameter to either `run()` or `get_db()`:
+
+```python
+import psycopg
+from pg_faker import run, COL_NAME_STRATEGY_MAPPINGS
+from pg_faker.strategies import fixed_strategy
+
+# Create custom mappings - order matters!
+# More specific mappings should come first
+custom_mappings = {}
+
+# Add specific mappings first
+custom_mappings[("department",)] = fixed_strategy("Engineering")
+custom_mappings[("work", "email")] = fixed_strategy("employee@company.com")
+
+# Then add the default mappings
+custom_mappings.update(COL_NAME_STRATEGY_MAPPINGS)
+
+with psycopg.connect("dbname=test user=test password=test host=localhost") as conn:
+    run(
+        conn,
+        row_counts={"public.users": 10},
+        col_name_strategy_mappings=custom_mappings
+    )
+```
+
+**Important:** When creating custom mappings, the order matters! More specific mappings should be listed before more general ones. In the example above, we first add our custom mappings, then add the default mappings. This ensures that `("work", "email")` matches before the more general `("email",)` mapping.
+
+### How Column Name Matching Works
+
+The matching is based on whether all words in a mapping key are present in the column name. For example:
+- A mapping key `("company", "name")` will match columns like `company_name`, `supplier_company_name`, etc.
+- A mapping key `("email",)` will match columns like `email`, `user_email`, `contact_email`, etc.
+
+The first matching mapping is used, so more specific mappings should be listed before more general ones.
+
+### Using with `get_db()`
+
+You can also use custom column name strategy mappings with the `get_db()` function:
+
+```python
+from pg_faker import get_db, COL_NAME_STRATEGY_MAPPINGS
+from pg_faker.strategies import fixed_strategy
+
+# Create custom mappings with proper ordering
+custom_mappings = {}
+custom_mappings[("status",)] = fixed_strategy("active")
+custom_mappings.update(COL_NAME_STRATEGY_MAPPINGS)
+
+data = get_db(
+    schema,
+    row_counts=row_counts,
+    col_name_strategy_mappings=custom_mappings
+)
+```
+
+
 ## Handling CHECK Constraints
 
 `pg-faker` does not automatically detect or enforce `CHECK` constraints in your schema. This means that randomly generated data may violate these constraints, resulting in errors when inserting data into the database.

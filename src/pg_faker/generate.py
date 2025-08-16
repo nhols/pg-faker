@@ -44,7 +44,9 @@ MIN_ROWS = 10
 MAX_ROWS = 1000
 
 
-def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
+def col_info_to_strategy(
+    col_info: ColInfo, col_name_strategy_mappings: dict[tuple[str, ...], Strategy[str, Any]] | None = None
+) -> Strategy[Any, Any]:
     pgtype = col_info["pgtype"]
     if pgtype == "uuid":
         strat = uuid_strategy(cast_to=None)
@@ -57,8 +59,9 @@ def col_info_to_strategy(col_info: ColInfo) -> Strategy[Any, Any]:
     elif pgtype in ("varchar", "text", "bpchar"):
         mapped_strat = None
         if not col_info["character_maximum_length"]:
-            # TODO make this configurable
-            for words, map_strat in COL_NAME_STRATEGY_MAPPINGS.items():
+            # Use provided mappings or default ones
+            mappings = col_name_strategy_mappings or COL_NAME_STRATEGY_MAPPINGS
+            for words, map_strat in mappings.items():
                 if all(word in col_info["col_name"] for word in words):
                     mapped_strat = map_strat
                     break
@@ -178,6 +181,7 @@ def get_row(
     fk_constraints: list[FkConstraint],
     data: dict[TableName, list[Row]],
     override_strategies: dict[ColName, Strategy[Any, Any]] | None = None,
+    col_name_strategy_mappings: dict[tuple[str, ...], Strategy[str, Any]] | None = None,
 ) -> Row:
     override_strategies = override_strategies or {}
 
@@ -185,7 +189,7 @@ def get_row(
     null_fk_col_strats: list[Strategy[Row, [Row]]] = []
     null_fk_col_names: set[str] = set()
     for fk_col in fk_constrained_cols:
-        strat = override_strategies.get(fk_col) or col_info_to_strategy(col_infos[fk_col])
+        strat = override_strategies.get(fk_col) or col_info_to_strategy(col_infos[fk_col], col_name_strategy_mappings)
         if strat.gen() is None:
             null_fk_col_strats.append(fixed_strategy({fk_col: None}))
             null_fk_col_names.add(fk_col)
@@ -205,7 +209,7 @@ def get_row(
         logger.warning(f"Override strategy for foreign key constrained columns will be ignored: {ovlp}")
     already_handled_cols = null_fk_col_names.union(fk_constrained_cols)
     strategies = {
-        col_name: override_strategies.get(col_name) or col_info_to_strategy(col_info)
+        col_name: override_strategies.get(col_name) or col_info_to_strategy(col_info, col_name_strategy_mappings)
         for col_name, col_info in col_infos.items()
         if col_name not in already_handled_cols
     }
@@ -236,9 +240,12 @@ def get_table(
     data: dict[TableName, list[Row]],
     row_count: int | None,
     override_strategies: dict[ColName, Strategy[Any, Any]] | None = None,
+    col_name_strategy_mappings: dict[tuple[str, ...], Strategy[str, Any]] | None = None,
 ) -> Strategy[list[Row], Any]:
     try:
-        row_strategy = get_row(table_info["columns"], table_info["fk_constraints"], data, override_strategies)
+        row_strategy = get_row(
+            table_info["columns"], table_info["fk_constraints"], data, override_strategies, col_name_strategy_mappings
+        )
         _ = row_strategy.gen()
     except UnSatisfiableFkConstraintError:
         logger.warning(f"No row strategy generated for table {table_info['table']}, returning empty list strategy")
@@ -258,6 +265,7 @@ def get_db(
     data: dict[TableName, list[Row]] | None = None,
     row_counts: RowCounts | None = None,
     tbl_override_strategies: dict[TableName, dict[ColName, Strategy[Any, Any]]] | None = None,
+    col_name_strategy_mappings: dict[tuple[str, ...], Strategy[str, Any]] | None = None,
 ) -> dict[TableName, list[Row]]:
     # TODO allow for composite column overrides
     logger.info("Generating database schema")
@@ -277,6 +285,7 @@ def get_db(
             data,
             row_counts.get(tbl) if row_counts else None,
             tbl_override_strategies.get(tbl) if tbl_override_strategies else None,
+            col_name_strategy_mappings,
         )
         strats[tbl] = table_strat
         data[tbl] = table_strat.gen()
