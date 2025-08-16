@@ -17,7 +17,6 @@ from .pg import (
 from .strategies import (
     Strategy,
     UnenforceableUniqueConstraintError,
-    binary_strategy,
     bit_string_strategy,
     bool_strategy,
     char_strategy,
