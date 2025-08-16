@@ -6,6 +6,16 @@ from psycopg import Connection, sql
 from pg_faker import run
 from pg_faker.strategies import int_strategy
 
+
+def get_postgres_version(conn: Connection) -> int:
+    """Get the major PostgreSQL version number."""
+    result = conn.execute("SELECT version()").fetchone()
+    version_str = result[0]  # type: ignore
+    # Extract major version from string like "PostgreSQL 12.x ..."
+    version_parts = version_str.split()[1].split(".")
+    return int(version_parts[0])
+
+
 SCHEMA_DIR = pathlib.Path(__file__).parent / "schemas"
 
 
@@ -106,6 +116,11 @@ def test_run_all_types(conn: Connection, data_type: str):
 def test_run_all_types_xfail(conn: Connection, data_type: str):
     query = f"CREATE TABLE test (mycol {data_type})"
     conn.execute(query)  # type: ignore
+
+    # Special handling for pg_snapshot in PostgreSQL 12
+    if data_type == "pg_snapshot" and get_postgres_version(conn) == 12:
+        pytest.xfail("pg_snapshot is expected to fail in PostgreSQL 12")
+
     with pytest.raises(ValueError, match="Unsupported pgtype:"):
         run(conn)
 

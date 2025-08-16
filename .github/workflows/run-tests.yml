@@ -3,11 +3,12 @@ on: [push, pull_request]
 
 jobs:
   run-tests:
-    name: python ${{ matrix.postgres-version }}
+    name: python ${{ matrix.python-version }} / postgres ${{ matrix.postgres-version }}
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
         postgres-version: ['12', '13', '14', '15', '16', '17']
 
     services:
@@ -28,8 +29,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Install the project
         run: uv sync --locked --all-extras --dev
