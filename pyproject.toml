@@ -7,7 +7,7 @@ license = "MIT"
 authors = [
     { name = "Neil Holloway", email = "neil_holloway@hotmail.co.uk" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license-files = ['LICENSE']
 dependencies = [
     "faker>=37.4.2",
