@@ -114,12 +114,12 @@ def test_run_all_types(conn: Connection, data_type: str):
     ],
 )
 def test_run_all_types_xfail(conn: Connection, data_type: str):
-    query = f"CREATE TABLE test (mycol {data_type})"
-    conn.execute(query)  # type: ignore
-
     # Special handling for pg_snapshot in PostgreSQL 12
     if data_type == "pg_snapshot" and get_postgres_version(conn) == 12:
         pytest.xfail("pg_snapshot is expected to fail in PostgreSQL 12")
+
+    query = f"CREATE TABLE test (mycol {data_type})"
+    conn.execute(query)  # type: ignore
 
     with pytest.raises(ValueError, match="Unsupported pgtype:"):
         run(conn)
