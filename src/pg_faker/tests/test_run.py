@@ -20,7 +20,7 @@ SCHEMA_DIR = pathlib.Path(__file__).parent / "schemas"
 
 
 def read_schema(filename: str) -> sql.SQL:
-    with open(SCHEMA_DIR / filename, "r") as f:
+    with open(SCHEMA_DIR / filename) as f:
         return sql.SQL(f.read())  # type: ignore
 
 

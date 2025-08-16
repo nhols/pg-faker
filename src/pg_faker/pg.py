@@ -97,7 +97,8 @@ ORDER BY
 def get_col_info(conn: Connection) -> dict[TableName, dict[ColName, ColInfo]]:
     """
     Get column information for all user tables in the database.
-    Returns a dictionary where keys are 'schema_name.table_name' and values are dictionaries of column names and their types.
+    Returns a dictionary where keys are 'schema_name.table_name' and values are dictionaries of column names
+    and their types.
     """
     with conn.cursor() as cursor:
         cursor.execute(_COL_INFO_QUERY)

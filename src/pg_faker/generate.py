@@ -150,7 +150,8 @@ def gen_fk_constrained_values(
         rows = [row for row in rows if all(value is not None for value in row.values())]
         if not rows:
             return None
-        # TODO above loop logic is run once per row in the local table but only needs to be run once, push this logic to get_table?
+        # TODO above loop logic is run once per row in the local table but only needs to be run once,
+        # push this logic to get_table?
         random.shuffle(rows)
         col_map = {v: k for k, v in fk["local_foreign_mapping"].items()}
         rows = [rename(row, col_map) for row in rows]

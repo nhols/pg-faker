@@ -128,7 +128,8 @@ def list_strategy[T: Any, **P](
         strategy: The strategy to generate each item.
         min_length: Minimum length of the generated list.
         max_length: Maximum length of the generated list.
-        unique_bys: A sequence of functions that return a hashable value for uniqueness checks. If any hashable value has been seen before, the item is skipped.
+        unique_bys: A sequence of functions that return a hashable value for uniqueness checks.
+                   If any hashable value has been seen before, the item is skipped.
         max_iter: Maximum number of iterations to try generating items.
     """
     items = []

@@ -2,45 +2,9 @@ name: Run tests
 on: [push, pull_request]
 
 jobs:
-  run-tests:
-    name: python ${{ matrix.python-version }} / postgres ${{ matrix.postgres-version }}
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        python-version: ['3.12', '3.13']
-        postgres-version: ['12', '13', '14', '15', '16', '17']
-
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgres-version }}
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-
-      - name: Install the project
-        run: uv sync --all-extras --dev
-
-      - name: Run tests
-        run: uv run pytest src/pg_faker/tests
+  test:
+    name: Full test matrix
+    uses: ./.github/workflows/test-reusable.yml
+    with:
+      python-versions: '["3.12", "3.13"]'
+      postgres-versions: '["12", "13", "14", "15", "16", "17"]'
